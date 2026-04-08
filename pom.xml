@@ -31,7 +31,7 @@
 				<extensions>true</extensions>
 				<configuration>
 					<classifier>mule-application</classifier>
-					<cloudHubDeployment>
+					<cloudHub2Deployment>
 						<uri>https://anypoint.mulesoft.com</uri>
 						<environment>${anypoint.env}</environment>
 						<muleVersion>${app.runtime}</muleVersion>
@@ -40,10 +40,11 @@
 						<connectedAppClientSecret>${anypoint.client.secret}</connectedAppClientSecret>
 						<connectedAppGrantType>client_credentials</connectedAppGrantType>
 						<businessGroupId>${anypoint.org}</businessGroupId>
-						<workerType>MICRO</workerType>
-						<workers>1</workers>
-						<region>us-east-1</region>
-					</cloudHubDeployment>
+						<vCores>MICRO</vCores>
+						<replicas>1</replicas>
+						<target>Cloudhub-US-East-2</target>
+						<provider>MC</provider>
+					</cloudHub2Deployment>
 				</configuration>
 			</plugin>
 		</plugins>
