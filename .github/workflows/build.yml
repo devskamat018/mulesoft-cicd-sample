@@ -59,9 +59,12 @@ jobs:
           </settings>
           EOF
 
-      - name: Build and Deploy Mule application to CloudHub 2.0
+      - name: Build Mule application
+        run: mvn clean package -DskipTests --no-transfer-progress
+        
+      - name: Deploy to Anypoint Platform (CloudHub 2.0)
         run: |
-          mvn clean deploy -DmuleDeploy -DskipTests \
+          mvn mule:deploy -DmuleDeploy \
             -Danypoint.client.id="${{ secrets.CONNECTED_APP_CLIENT_ID }}" \
             -Danypoint.client.secret="${{ secrets.CONNECTED_APP_CLIENT_SECRET }}" \
             -Danypoint.org="${{ env.ANYPOINT_ORG }}" \
