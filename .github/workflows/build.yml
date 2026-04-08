@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  ANYPOINT_ORG: a164d45a-438d-4e92-b440-0bb72eeadf5d
+  ANYPOINT_ORG: 9316d463-75eb-4e74-955d-f242165464ce
   ANYPOINT_ENV: Sandbox
 
 jobs:
