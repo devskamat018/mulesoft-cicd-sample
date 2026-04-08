@@ -12,6 +12,8 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      ANYPOINT_REPO_PASSWORD: ${{ secrets.CONNECTED_APP_CLIENT_ID }}~?~${{ secrets.CONNECTED_APP_CLIENT_SECRET }}
 
     steps:
       - name: Checkout repository
@@ -51,8 +53,6 @@ jobs:
             </servers>
           </settings>
           EOF
-        env:
-          ANYPOINT_REPO_PASSWORD: ${{ secrets.CONNECTED_APP_CLIENT_ID }}~?~${{ secrets.CONNECTED_APP_CLIENT_SECRET }}
 
       - name: Build Mule application
         run: mvn clean package --no-transfer-progress -DskipTests
