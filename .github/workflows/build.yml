@@ -25,7 +25,12 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           cache: 'maven'
-
+          
+      - name: Set up Maven 3.8.6
+        uses: stCarolas/setup-maven@v5
+        with:
+          maven-version: 3.8.6
+          
       - name: Configure Maven settings for Anypoint Exchange
         run: |
           mkdir -p ~/.m2
