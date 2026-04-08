@@ -40,7 +40,7 @@
 						<connectedAppClientSecret>${anypoint.client.secret}</connectedAppClientSecret>
 						<connectedAppGrantType>client_credentials</connectedAppGrantType>
 						<businessGroupId>${anypoint.org}</businessGroupId>
-						<vCores>MICRO</vCores>
+						<vCores>0.1</vCores>
 						<replicas>1</replicas>
 						<target>Cloudhub-US-East-2</target>
 						<provider>MC</provider>
