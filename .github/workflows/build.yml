@@ -8,26 +8,32 @@ on:
 env:
   ANYPOINT_ORG: 9316d463-75eb-4e74-955d-f242165464ce
   ANYPOINT_ENV: Sandbox
-  APP_NAME: mulesoft-cicd-sample
-  APP_RUNTIME: 4.7.4
-  TARGET: Cloudhub-US-East-2
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     env:
       ANYPOINT_REPO_PASSWORD: ${{ secrets.CONNECTED_APP_CLIENT_ID }}~?~${{ secrets.CONNECTED_APP_CLIENT_SECRET }}
+      MAVEN_OPTS: >-
+        --add-opens java.base/sun.net.www.protocol.jar=ALL-UNNAMED
+        --add-opens java.base/java.net=ALL-UNNAMED
+        --add-opens java.base/sun.net.www=ALL-UNNAMED
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Set up Java 11
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '11'
           distribution: 'temurin'
           cache: 'maven'
+
+      - name: Set up Maven 3.8.6
+        uses: stCarolas/setup-maven@v5
+        with:
+          maven-version: 3.8.6
 
       - name: Configure Maven settings for Anypoint Exchange
         run: |
@@ -57,25 +63,11 @@ jobs:
           </settings>
           EOF
 
-      - name: Build Mule application
-        run: mvn clean package -DskipTests --no-transfer-progress
-
-      - name: Install Anypoint CLI
-        run: npm install -g anypoint-cli-v4
-
-      - name: Deploy to CloudHub 2.0
-        env:
-          ANYPOINT_CLIENT_ID: ${{ secrets.CONNECTED_APP_CLIENT_ID }}
-          ANYPOINT_CLIENT_SECRET: ${{ secrets.CONNECTED_APP_CLIENT_SECRET }}
+      - name: Build and Deploy to Anypoint Platform (CloudHub 2.0)
         run: |
-          JAR=$(ls target/*-mule-application.jar)
-          anypoint-cli-v4 runtime-mgr cloudhub2-application deploy \
-            --organization ${{ env.ANYPOINT_ORG }} \
-            --environment ${{ env.ANYPOINT_ENV }} \
-            --runtime ${{ env.APP_RUNTIME }} \
-            --replicas 1 \
-            --vCores 0.1 \
-            --provider MC \
-            --target ${{ env.TARGET }} \
-            ${{ env.APP_NAME }} \
-            $JAR
+          mvn clean deploy -DmuleDeploy -DskipTests \
+            -Danypoint.client.id="${{ secrets.CONNECTED_APP_CLIENT_ID }}" \
+            -Danypoint.client.secret="${{ secrets.CONNECTED_APP_CLIENT_SECRET }}" \
+            -Danypoint.org="${{ env.ANYPOINT_ORG }}" \
+            -Danypoint.env="${{ env.ANYPOINT_ENV }}" \
+            --no-transfer-progress
