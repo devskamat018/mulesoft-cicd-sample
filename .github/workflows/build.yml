@@ -92,11 +92,24 @@ jobs:
             | jq -r --arg target "${{ env.TARGET_NAME }}" '.[] | select(.name==$target) | .id')
           echo "Target ID: ${TARGET_ID}"
 
+          # Get the exact runtime version string supported by this target (e.g. "4.7.4:1e")
+          echo "Getting supported runtime versions for target..."
+          RUNTIME_VERSION=$(curl -sf "https://anypoint.mulesoft.com/runtimefabric/api/organizations/${{ env.ANYPOINT_ORG }}/targets/${TARGET_ID}/runtimes" \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            | jq -r --arg base "${{ env.APP_RUNTIME }}" \
+              '[.[] | select(.version | startswith($base))] | sort_by(.version) | last | .version')
+          echo "Resolved runtime version: ${RUNTIME_VERSION}"
+
+          if [ -z "${RUNTIME_VERSION}" ] || [ "${RUNTIME_VERSION}" = "null" ]; then
+            echo "ERROR: Could not find a supported runtime version matching ${{ env.APP_RUNTIME }} on target ${TARGET_ID}"
+            exit 1
+          fi
+
           # Build deployment config referencing Exchange artifact (no file upload)
           DEPLOY_CONFIG=$(jq -n \
             --arg name "${{ env.APP_NAME }}" \
             --arg targetId "${TARGET_ID}" \
-            --arg runtime "${{ env.APP_RUNTIME }}" \
+            --arg runtime "${RUNTIME_VERSION}" \
             --arg groupId "${{ env.GROUP_ID }}" \
             --arg artifactId "${{ env.ARTIFACT_ID }}" \
             --arg version "${{ env.VERSION }}" \
