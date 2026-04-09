@@ -8,6 +8,9 @@ on:
 env:
   ANYPOINT_ORG: 9316d463-75eb-4e74-955d-f242165464ce
   ANYPOINT_ENV: Sandbox
+  APP_NAME: mulesoft-cicd-sample
+  APP_RUNTIME: 4.7.4
+  TARGET: Cloudhub-US-East-2
 
 jobs:
   build-and-deploy:
@@ -54,11 +57,25 @@ jobs:
           </settings>
           EOF
 
-      - name: Build and Deploy to Anypoint Platform (CloudHub 2.0)
+      - name: Build Mule application
+        run: mvn clean package -DskipTests --no-transfer-progress
+
+      - name: Install Anypoint CLI
+        run: npm install -g anypoint-cli-v4
+
+      - name: Deploy to CloudHub 2.0
+        env:
+          ANYPOINT_CLIENT_ID: ${{ secrets.CONNECTED_APP_CLIENT_ID }}
+          ANYPOINT_CLIENT_SECRET: ${{ secrets.CONNECTED_APP_CLIENT_SECRET }}
         run: |
-          mvn clean deploy -DmuleDeploy -DskipTests \
-            -Danypoint.client.id="${{ secrets.CONNECTED_APP_CLIENT_ID }}" \
-            -Danypoint.client.secret="${{ secrets.CONNECTED_APP_CLIENT_SECRET }}" \
-            -Danypoint.org="${{ env.ANYPOINT_ORG }}" \
-            -Danypoint.env="${{ env.ANYPOINT_ENV }}" \
-            --no-transfer-progress
+          JAR=$(ls target/*-mule-application.jar)
+          anypoint-cli-v4 runtime-mgr cloudhub2-application deploy \
+            --organization ${{ env.ANYPOINT_ORG }} \
+            --environment ${{ env.ANYPOINT_ENV }} \
+            --runtime ${{ env.APP_RUNTIME }} \
+            --replicas 1 \
+            --vCores 0.1 \
+            --provider MC \
+            --target ${{ env.TARGET }} \
+            ${{ env.APP_NAME }} \
+            $JAR
