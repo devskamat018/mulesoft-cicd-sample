@@ -56,7 +56,7 @@ jobs:
 
       - name: Build and Deploy to Anypoint Platform (CloudHub 2.0)
         run: |
-          mvn clean deploy -DmuleDeploy -Pdeploy -DskipTests \
+          mvn clean deploy -DmuleDeploy -DskipTests \
             -Danypoint.client.id="${{ secrets.CONNECTED_APP_CLIENT_ID }}" \
             -Danypoint.client.secret="${{ secrets.CONNECTED_APP_CLIENT_SECRET }}" \
             -Danypoint.org="${{ env.ANYPOINT_ORG }}" \

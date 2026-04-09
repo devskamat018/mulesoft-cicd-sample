@@ -31,41 +31,24 @@
 				<extensions>true</extensions>
 				<configuration>
 					<classifier>mule-application</classifier>
+					<cloudHub2Deployment>
+						<uri>https://anypoint.mulesoft.com</uri>
+						<provider>MC</provider>
+						<environment>${anypoint.env}</environment>
+						<target>Cloudhub-US-East-2</target>
+						<muleVersion>${app.runtime}</muleVersion>
+						<applicationName>${project.artifactId}</applicationName>
+						<replicas>1</replicas>
+						<vCores>0.1</vCores>
+						<connectedAppClientId>${anypoint.client.id}</connectedAppClientId>
+						<connectedAppClientSecret>${anypoint.client.secret}</connectedAppClientSecret>
+						<connectedAppGrantType>client_credentials</connectedAppGrantType>
+						<businessGroupId>${anypoint.org}</businessGroupId>
+					</cloudHub2Deployment>
 				</configuration>
 			</plugin>
 		</plugins>
 	</build>
-
-	<profiles>
-		<profile>
-			<id>deploy</id>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.mule.tools.maven</groupId>
-						<artifactId>mule-maven-plugin</artifactId>
-						<version>${mule.maven.plugin.version}</version>
-						<configuration>
-							<cloudHub2Deployment>
-								<uri>https://anypoint.mulesoft.com</uri>
-								<provider>MC</provider>
-								<environment>${anypoint.env}</environment>
-								<target>Cloudhub-US-East-2</target>
-								<muleVersion>${app.runtime}</muleVersion>
-								<applicationName>${project.artifactId}</applicationName>
-								<replicas>1</replicas>
-								<vCores>0.1</vCores>
-								<connectedAppClientId>${anypoint.client.id}</connectedAppClientId>
-								<connectedAppClientSecret>${anypoint.client.secret}</connectedAppClientSecret>
-								<connectedAppGrantType>client_credentials</connectedAppGrantType>
-								<businessGroupId>${anypoint.org}</businessGroupId>
-							</cloudHub2Deployment>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-	</profiles>
 
 	<dependencies>
 		<dependency>
