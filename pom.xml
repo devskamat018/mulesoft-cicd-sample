@@ -14,7 +14,7 @@
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
 		<app.runtime>4.7.4</app.runtime>
-		<mule.maven.plugin.version>3.8.7</mule.maven.plugin.version>
+		<mule.maven.plugin.version>4.8.0</mule.maven.plugin.version>
 	</properties>
 
 	<build>
@@ -32,31 +32,6 @@
 				<configuration>
 					<classifier>mule-application</classifier>
 				</configuration>
-				<executions>
-					<execution>
-						<id>default-deploy</id>
-						<phase>deploy</phase>
-						<goals>
-							<goal>deploy</goal>
-						</goals>
-						<configuration>
-							<cloudHub2Deployment>
-								<uri>https://anypoint.mulesoft.com</uri>
-								<provider>MC</provider>
-								<environment>${anypoint.env}</environment>
-								<target>Cloudhub-US-East-2</target>
-								<muleVersion>${app.runtime}</muleVersion>
-								<applicationName>${project.artifactId}</applicationName>
-								<replicas>1</replicas>
-								<vCores>0.1</vCores>
-								<connectedAppClientId>${anypoint.client.id}</connectedAppClientId>
-								<connectedAppClientSecret>${anypoint.client.secret}</connectedAppClientSecret>
-								<connectedAppGrantType>client_credentials</connectedAppGrantType>
-								<businessGroupId>${anypoint.org}</businessGroupId>
-							</cloudHub2Deployment>
-						</configuration>
-					</execution>
-				</executions>
 			</plugin>
 		</plugins>
 	</build>
