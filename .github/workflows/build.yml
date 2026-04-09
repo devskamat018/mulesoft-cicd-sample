@@ -19,18 +19,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java 11
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
-          java-version: '11'
+          java-version: '17'
           distribution: 'temurin'
           cache: 'maven'
-          
-      - name: Set up Maven 3.8.6
-        uses: stCarolas/setup-maven@v5
-        with:
-          maven-version: 3.8.6
-          
+
       - name: Configure Maven settings for Anypoint Exchange
         run: |
           mkdir -p ~/.m2
@@ -59,12 +54,9 @@ jobs:
           </settings>
           EOF
 
-      - name: Build Mule application
-        run: mvn clean package -DskipTests --no-transfer-progress
-        
-      - name: Deploy to Anypoint Platform (CloudHub 2.0)
+      - name: Build and Deploy to Anypoint Platform (CloudHub 2.0)
         run: |
-          mvn mule:deploy -DmuleDeploy \
+          mvn clean deploy -DmuleDeploy -Pdeploy -DskipTests \
             -Danypoint.client.id="${{ secrets.CONNECTED_APP_CLIENT_ID }}" \
             -Danypoint.client.secret="${{ secrets.CONNECTED_APP_CLIENT_SECRET }}" \
             -Danypoint.org="${{ env.ANYPOINT_ORG }}" \
