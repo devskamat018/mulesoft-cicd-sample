@@ -8,32 +8,26 @@ on:
 env:
   ANYPOINT_ORG: 9316d463-75eb-4e74-955d-f242165464ce
   ANYPOINT_ENV: Sandbox
+  APP_NAME: mulesoft-cicd-sample
+  APP_RUNTIME: 4.7.4
+  TARGET_NAME: Cloudhub-US-East-2
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     env:
       ANYPOINT_REPO_PASSWORD: ${{ secrets.CONNECTED_APP_CLIENT_ID }}~?~${{ secrets.CONNECTED_APP_CLIENT_SECRET }}
-      MAVEN_OPTS: >-
-        --add-opens java.base/sun.net.www.protocol.jar=ALL-UNNAMED
-        --add-opens java.base/java.net=ALL-UNNAMED
-        --add-opens java.base/sun.net.www=ALL-UNNAMED
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java 11
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
-          java-version: '11'
+          java-version: '17'
           distribution: 'temurin'
           cache: 'maven'
-
-      - name: Set up Maven 3.8.6
-        uses: stCarolas/setup-maven@v5
-        with:
-          maven-version: 3.8.6
 
       - name: Configure Maven settings for Anypoint Exchange
         run: |
@@ -63,11 +57,111 @@ jobs:
           </settings>
           EOF
 
-      - name: Build and Deploy to Anypoint Platform (CloudHub 2.0)
+      - name: Build Mule application
+        run: mvn clean package -DskipTests --no-transfer-progress
+
+      - name: Deploy to CloudHub 2.0 via REST API
+        env:
+          ANYPOINT_CLIENT_ID: ${{ secrets.CONNECTED_APP_CLIENT_ID }}
+          ANYPOINT_CLIENT_SECRET: ${{ secrets.CONNECTED_APP_CLIENT_SECRET }}
         run: |
-          mvn clean deploy -DmuleDeploy -DskipTests \
-            -Danypoint.client.id="${{ secrets.CONNECTED_APP_CLIENT_ID }}" \
-            -Danypoint.client.secret="${{ secrets.CONNECTED_APP_CLIENT_SECRET }}" \
-            -Danypoint.org="${{ env.ANYPOINT_ORG }}" \
-            -Danypoint.env="${{ env.ANYPOINT_ENV }}" \
-            --no-transfer-progress
+          # Get access token
+          echo "Getting access token..."
+          ACCESS_TOKEN=$(curl -sf -X POST "https://anypoint.mulesoft.com/accounts/api/v2/oauth2/token" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "grant_type=client_credentials&client_id=${ANYPOINT_CLIENT_ID}&client_secret=${ANYPOINT_CLIENT_SECRET}" \
+            | jq -r '.access_token')
+          echo "Access token obtained"
+
+          # Get environment ID
+          echo "Getting environment ID..."
+          ENV_ID=$(curl -sf "https://anypoint.mulesoft.com/accounts/api/organizations/${{ env.ANYPOINT_ORG }}/environments" \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            | jq -r --arg env "${{ env.ANYPOINT_ENV }}" '.data[] | select(.name==$env) | .id')
+          echo "Environment ID: ${ENV_ID}"
+
+          # Get target ID
+          echo "Getting target ID..."
+          TARGET_ID=$(curl -sf "https://anypoint.mulesoft.com/runtimefabric/api/organizations/${{ env.ANYPOINT_ORG }}/targets" \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            | jq -r --arg target "${{ env.TARGET_NAME }}" '.[] | select(.name==$target) | .id')
+          echo "Target ID: ${TARGET_ID}"
+
+          # Find JAR
+          JAR=$(ls target/*-mule-application.jar)
+          echo "JAR: ${JAR}"
+
+          # Build deployment config
+          DEPLOY_CONFIG=$(jq -n \
+            --arg name "${{ env.APP_NAME }}" \
+            --arg targetId "${TARGET_ID}" \
+            --arg runtime "${{ env.APP_RUNTIME }}" \
+            '{
+              name: $name,
+              labels: [],
+              target: {
+                provider: "MC",
+                targetId: $targetId,
+                deploymentSettings: {
+                  runtimeVersion: $runtime,
+                  lastMileSecurity: false,
+                  persistentObjectStore: false,
+                  updateStrategy: "rolling",
+                  clustering: false,
+                  enforceDeployingReplicasAcrossNodes: false,
+                  http: { inbound: { lastMileSecurity: false, forwardSslSession: false } },
+                  jvm: {},
+                  resources: {
+                    cpu: { reserved: "100m", limit: "500m" },
+                    memory: { reserved: "700Mi", limit: "700Mi" }
+                  }
+                },
+                replicas: 1
+              },
+              application: {
+                ref: {
+                  groupId: "com.mycompany",
+                  artifactId: "mulesoft-cicd-sample",
+                  version: "1.0.0-SNAPSHOT",
+                  packaging: "jar"
+                },
+                desiredState: "STARTED",
+                configuration: {
+                  "mule.agent.application.properties.service": {
+                    applicationName: $name,
+                    properties: {},
+                    secureProperties: {}
+                  },
+                  "mule.agent.logging.service": {
+                    artifactName: $name,
+                    scopeLoggingConfigurations: []
+                  }
+                },
+                integrations: {
+                  services: { objectStoreV2: { enabled: false } }
+                }
+              }
+            }')
+
+          # Check if deployment already exists
+          EXISTING_ID=$(curl -sf "https://anypoint.mulesoft.com/amc/application-manager/api/v2/organizations/${{ env.ANYPOINT_ORG }}/environments/${ENV_ID}/deployments" \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            | jq -r --arg name "${{ env.APP_NAME }}" '.items[] | select(.name==$name) | .id // empty')
+
+          if [ -n "${EXISTING_ID}" ]; then
+            echo "Updating existing deployment: ${EXISTING_ID}"
+            curl -sf -X PATCH \
+              "https://anypoint.mulesoft.com/amc/application-manager/api/v2/organizations/${{ env.ANYPOINT_ORG }}/environments/${ENV_ID}/deployments/${EXISTING_ID}" \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+              -F "artifact=@${JAR};type=application/java-archive" \
+              -F "deploymentConfiguration=${DEPLOY_CONFIG};type=application/json"
+          else
+            echo "Creating new deployment..."
+            curl -sf -X POST \
+              "https://anypoint.mulesoft.com/amc/application-manager/api/v2/organizations/${{ env.ANYPOINT_ORG }}/environments/${ENV_ID}/deployments" \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+              -F "artifact=@${JAR};type=application/java-archive" \
+              -F "deploymentConfiguration=${DEPLOY_CONFIG};type=application/json"
+          fi
+
+          echo "Deployment initiated successfully!"
