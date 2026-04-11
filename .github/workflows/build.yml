@@ -13,7 +13,7 @@ env:
   TARGET_ID: cloudhub-us-east-2
   GROUP_ID: 9316d463-75eb-4e74-955d-f242165464ce
   ARTIFACT_ID: mulesoft-cicd-sample
-  VERSION: 2.0.5
+  VERSION: 2.0.6
 
 jobs:
   build-and-deploy:
@@ -83,7 +83,7 @@ jobs:
           echo "Attempting to update existing deployment..."
           MODIFY_OUT=$(anypoint-cli-v4 runtime-mgr:application:modify \
             "${{ env.APP_NAME }}" \
-            "${{ env.ARTIFACT_ID }}" \
+            --artifactId "${{ env.ARTIFACT_ID }}" \
             --groupId "${{ env.GROUP_ID }}" \
             --assetVersion "${{ env.VERSION }}" \
             --replicaSize 0.1 \
