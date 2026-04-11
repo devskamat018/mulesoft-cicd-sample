@@ -9,7 +9,7 @@ env:
   ANYPOINT_ORG: 9316d463-75eb-4e74-955d-f242165464ce
   ANYPOINT_ENV: Sandbox
   APP_NAME: mulesoft-cicd-sample
-  APP_RUNTIME: 4.8.2
+  APP_RUNTIME: 4.8.2:1e
   TARGET_NAME: Cloudhub-US-East-2
   GROUP_ID: 9316d463-75eb-4e74-955d-f242165464ce
   ARTIFACT_ID: mulesoft-cicd-sample
@@ -92,9 +92,20 @@ jobs:
             | jq -r --arg target "${{ env.TARGET_NAME }}" '.[] | select(.name==$target) | .id')
           echo "Target ID: ${TARGET_ID}"
 
-          # Use APP_RUNTIME directly — CloudHub 2.0 shared space has no public runtimes lookup API
+          # Try AMC targets API to find supported runtime versions for CloudHub 2.0
+          echo "=== AMC targets (looking for runtime versions) ==="
+          curl -s "https://anypoint.mulesoft.com/amc/application-manager/api/v2/organizations/${{ env.ANYPOINT_ORG }}/targets" \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            | jq --arg t "${{ env.TARGET_NAME }}" '
+                if type == "array" then .[] | select(.name==$t or (.name|ascii_downcase)==($t|ascii_downcase))
+                elif .items then .items[] | select(.name==$t or (.name|ascii_downcase)==($t|ascii_downcase))
+                else . end' 2>/dev/null || echo "(jq parse failed or no match)"
+          echo "=================================================="
+
+          # CloudHub 2.0 runtimeVersion format is "<version>:<channel>" e.g. "4.8.2:1e"
+          # Use APP_RUNTIME_FULL if set, otherwise default APP_RUNTIME
           RUNTIME_VERSION="${{ env.APP_RUNTIME }}"
-          echo "Runtime version: ${RUNTIME_VERSION}"
+          echo "Runtime version to deploy: ${RUNTIME_VERSION}"
 
           # Build deployment config referencing Exchange artifact (no file upload)
           DEPLOY_CONFIG=$(jq -n \
