@@ -9,7 +9,7 @@ env:
   ANYPOINT_ORG: 9316d463-75eb-4e74-955d-f242165464ce
   ANYPOINT_ENV: Sandbox
   APP_NAME: mulesoft-cicd-sample
-  APP_RUNTIME: 4.9.0:7
+  APP_RUNTIME: 4.9.0
   TARGET_NAME: Cloudhub-US-East-2
   GROUP_ID: 9316d463-75eb-4e74-955d-f242165464ce
   ARTIFACT_ID: mulesoft-cicd-sample
@@ -111,7 +111,7 @@ jobs:
                 provider: "MC",
                 targetId: $targetId,
                 deploymentSettings: {
-                  runtimeVersion: $runtime,
+                  muleVersion: { version: $runtime },
                   lastMileSecurity: false,
                   persistentObjectStore: false,
                   updateStrategy: "rolling",
