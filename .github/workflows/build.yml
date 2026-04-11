@@ -103,6 +103,7 @@ jobs:
             --arg groupId "${{ env.GROUP_ID }}" \
             --arg artifactId "${{ env.ARTIFACT_ID }}" \
             --arg version "${{ env.VERSION }}" \
+            --argjson vcores 0.1 \
             '{
               name: $name,
               labels: [],
@@ -118,7 +119,7 @@ jobs:
                   enforceDeployingReplicasAcrossNodes: false,
                   http: { inbound: { lastMileSecurity: false, forwardSslSession: false } },
                   jvm: {},
-                  resources: { vCores: 0.1 }
+                  resources: { vCores: $vcores }
                 },
                 replicas: 1
               },
@@ -146,6 +147,10 @@ jobs:
                 }
               }
             }')
+
+          echo "=== Deployment JSON ==="
+          echo "${DEPLOY_CONFIG}" | jq .
+          echo "======================="
 
           # Check if deployment already exists
           echo "Checking for existing deployment..."
