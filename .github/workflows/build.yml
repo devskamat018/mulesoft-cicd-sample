@@ -13,7 +13,7 @@ env:
   TARGET_ID: cloudhub-us-east-2
   GROUP_ID: 9316d463-75eb-4e74-955d-f242165464ce
   ARTIFACT_ID: mulesoft-cicd-sample
-  VERSION: 2.0.3
+  VERSION: 2.0.4
 
 jobs:
   build-and-deploy:
@@ -72,24 +72,9 @@ jobs:
           ANYPOINT_CLIENT_ID: ${{ secrets.CONNECTED_APP_CLIENT_ID }}
           ANYPOINT_CLIENT_SECRET: ${{ secrets.CONNECTED_APP_CLIENT_SECRET }}
         run: |
-          CLI_COMMON_FLAGS="--environment ${{ env.ANYPOINT_ENV }} \
-            --organization ${{ env.ANYPOINT_ORG }} \
-            --client_id ${ANYPOINT_CLIENT_ID} \
-            --client_secret ${ANYPOINT_CLIENT_SECRET}"
-
-          # Check if app already exists on the target
-          echo "Checking if deployment already exists..."
-          APP_EXISTS=$(anypoint-cli-v4 runtime-mgr:application:describe \
-            "${{ env.APP_NAME }}" \
-            --environment "${{ env.ANYPOINT_ENV }}" \
-            --organization "${{ env.ANYPOINT_ORG }}" \
-            --client_id "${ANYPOINT_CLIENT_ID}" \
-            --client_secret "${ANYPOINT_CLIENT_SECRET}" \
-            --output json 2>/dev/null | jq -r '.name // empty')
-
-          if [ -n "${APP_EXISTS}" ]; then
-            echo "App exists — updating with modify..."
-            anypoint-cli-v4 runtime-mgr:application:modify \
+          # Try modify first (update existing app), fall back to deploy (create new)
+          echo "Attempting to update existing deployment..."
+          if anypoint-cli-v4 runtime-mgr:application:modify \
               "${{ env.APP_NAME }}" \
               "${{ env.ARTIFACT_ID }}" \
               --groupId "${{ env.GROUP_ID }}" \
@@ -101,9 +86,10 @@ jobs:
               --environment "${{ env.ANYPOINT_ENV }}" \
               --organization "${{ env.ANYPOINT_ORG }}" \
               --client_id "${ANYPOINT_CLIENT_ID}" \
-              --client_secret "${ANYPOINT_CLIENT_SECRET}"
+              --client_secret "${ANYPOINT_CLIENT_SECRET}" 2>&1; then
+            echo "Deployment updated successfully!"
           else
-            echo "App does not exist — creating with deploy..."
+            echo "App not found — creating new deployment..."
             anypoint-cli-v4 runtime-mgr:application:deploy \
               "${{ env.APP_NAME }}" \
               "${{ env.TARGET_ID }}" \
@@ -118,4 +104,5 @@ jobs:
               --organization "${{ env.ANYPOINT_ORG }}" \
               --client_id "${ANYPOINT_CLIENT_ID}" \
               --client_secret "${ANYPOINT_CLIENT_SECRET}"
+            echo "Deployment created successfully!"
           fi
