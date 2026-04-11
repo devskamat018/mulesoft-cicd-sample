@@ -72,35 +72,44 @@ jobs:
           ANYPOINT_CLIENT_ID: ${{ secrets.CONNECTED_APP_CLIENT_ID }}
           ANYPOINT_CLIENT_SECRET: ${{ secrets.CONNECTED_APP_CLIENT_SECRET }}
         run: |
-          # Print modify help to see exact flags
-          echo "=== modify command help ==="
-          anypoint-cli-v4 runtime-mgr:application:modify --help \
-            --client_id "${ANYPOINT_CLIENT_ID}" \
-            --client_secret "${ANYPOINT_CLIENT_SECRET}" 2>&1 || true
-          echo "==========================="
-
-          # Capture modify output to detect error type
-          echo "Attempting to update existing deployment..."
-          MODIFY_OUT=$(anypoint-cli-v4 runtime-mgr:application:modify \
-            "${{ env.APP_NAME }}" \
-            --artifactId "${{ env.ARTIFACT_ID }}" \
-            --groupId "${{ env.GROUP_ID }}" \
-            --assetVersion "${{ env.VERSION }}" \
-            --replicaSize 0.1 \
-            --replicas 1 \
-            --runtimeVersion "${{ env.APP_RUNTIME }}" \
-            --releaseChannel LTS \
+          # Step 1: Look up the app UUID by name
+          echo "Looking up app UUID for: ${{ env.APP_NAME }}"
+          APP_LIST=$(anypoint-cli-v4 runtime-mgr:application:list \
             --environment "${{ env.ANYPOINT_ENV }}" \
             --organization "${{ env.ANYPOINT_ORG }}" \
             --client_id "${ANYPOINT_CLIENT_ID}" \
-            --client_secret "${ANYPOINT_CLIENT_SECRET}" 2>&1) && MODIFY_EXIT=0 || MODIFY_EXIT=$?
+            --client_secret "${ANYPOINT_CLIENT_SECRET}" \
+            --output json 2>&1)
 
-          echo "Modify output: ${MODIFY_OUT}"
-          echo "Modify exit code: ${MODIFY_EXIT}"
+          echo "App list output: ${APP_LIST}"
 
-          if [ "${MODIFY_EXIT}" -eq 0 ]; then
+          APP_UUID=$(echo "${APP_LIST}" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+apps = data if isinstance(data, list) else data.get('data', [])
+match = next((a for a in apps if a.get('name') == '${{ env.APP_NAME }}'), None)
+print(match['id'] if match else '')
+" 2>/dev/null || true)
+
+          echo "Found app UUID: ${APP_UUID}"
+
+          if [ -n "${APP_UUID}" ]; then
+            echo "App exists — updating with modify using UUID: ${APP_UUID}"
+            anypoint-cli-v4 runtime-mgr:application:modify \
+              "${APP_UUID}" \
+              --artifactId "${{ env.ARTIFACT_ID }}" \
+              --groupId "${{ env.GROUP_ID }}" \
+              --assetVersion "${{ env.VERSION }}" \
+              --replicaSize 0.1 \
+              --replicas 1 \
+              --runtimeVersion "${{ env.APP_RUNTIME }}" \
+              --releaseChannel LTS \
+              --environment "${{ env.ANYPOINT_ENV }}" \
+              --organization "${{ env.ANYPOINT_ORG }}" \
+              --client_id "${ANYPOINT_CLIENT_ID}" \
+              --client_secret "${ANYPOINT_CLIENT_SECRET}"
             echo "Deployment updated successfully!"
-          elif echo "${MODIFY_OUT}" | grep -qi "not found\|does not exist\|no app"; then
+          else
             echo "App does not exist — creating with deploy..."
             anypoint-cli-v4 runtime-mgr:application:deploy \
               "${{ env.APP_NAME }}" \
@@ -116,7 +125,5 @@ jobs:
               --organization "${{ env.ANYPOINT_ORG }}" \
               --client_id "${ANYPOINT_CLIENT_ID}" \
               --client_secret "${ANYPOINT_CLIENT_SECRET}"
-          else
-            echo "Modify failed with unexpected error — see output above"
-            exit 1
+            echo "Deployment created successfully!"
           fi
