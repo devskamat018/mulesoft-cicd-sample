@@ -13,7 +13,7 @@ env:
   TARGET_NAME: Cloudhub-US-East-2
   GROUP_ID: 9316d463-75eb-4e74-955d-f242165464ce
   ARTIFACT_ID: mulesoft-cicd-sample
-  VERSION: 2.0.0
+  VERSION: 2.0.1
 
 jobs:
   build-and-deploy:
