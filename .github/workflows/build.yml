@@ -85,52 +85,16 @@ jobs:
             | jq -r --arg env "${{ env.ANYPOINT_ENV }}" '.data[] | select(.name==$env) | .id')
           echo "Environment ID: ${ENV_ID}"
 
-          # Get target ID + dump full target object (may contain embedded runtimes)
-          echo "Getting target info..."
-          TARGETS_RAW=$(curl -sf "https://anypoint.mulesoft.com/runtimefabric/api/organizations/${{ env.ANYPOINT_ORG }}/targets" \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}")
-          TARGET_ID=$(echo "${TARGETS_RAW}" | jq -r --arg target "${{ env.TARGET_NAME }}" '.[] | select(.name==$target) | .id')
+          # Get target ID
+          echo "Getting target ID..."
+          TARGET_ID=$(curl -sf "https://anypoint.mulesoft.com/runtimefabric/api/organizations/${{ env.ANYPOINT_ORG }}/targets" \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            | jq -r --arg target "${{ env.TARGET_NAME }}" '.[] | select(.name==$target) | .id')
           echo "Target ID: ${TARGET_ID}"
-          echo "=== Full target object ==="
-          echo "${TARGETS_RAW}" | jq --arg target "${{ env.TARGET_NAME }}" '.[] | select(.name==$target)'
-          echo "=========================="
 
-          # Try runtimes embedded in target object first
-          RUNTIME_VERSION=$(echo "${TARGETS_RAW}" | jq -r --arg target "${{ env.TARGET_NAME }}" --arg base "${{ env.APP_RUNTIME }}" '
-            [
-              .[] | select(.name==$target)
-              | (.runtimes // .supportedRuntimes // [])[]
-              | (.version // .runtimeVersion // .tag // "")
-              | select(startswith($base))
-            ] | sort | last // empty')
-          echo "Runtime from target object: ${RUNTIME_VERSION}"
-
-          # Probe separate runtimes endpoints (use -s not -sf so we see error bodies too)
-          if [ -z "${RUNTIME_VERSION}" ] || [ "${RUNTIME_VERSION}" = "null" ]; then
-            echo "=== RTF runtimes endpoint ==="
-            RTF_RESP=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
-              "https://anypoint.mulesoft.com/runtimefabric/api/organizations/${{ env.ANYPOINT_ORG }}/targets/${TARGET_ID}/runtimes" \
-              -H "Authorization: Bearer ${ACCESS_TOKEN}")
-            echo "${RTF_RESP}"
-
-            echo "=== AMC runtimes endpoint ==="
-            AMC_RESP=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
-              "https://anypoint.mulesoft.com/amc/application-manager/api/v2/organizations/${{ env.ANYPOINT_ORG }}/targets/${TARGET_ID}/runtimes" \
-              -H "Authorization: Bearer ${ACCESS_TOKEN}")
-            echo "${AMC_RESP}"
-
-            echo "=== Cloudhub runtimes endpoint ==="
-            CH_RESP=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
-              "https://anypoint.mulesoft.com/cloudhub/api/v2/runtimes" \
-              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-              -H "X-ANYPNT-ENV-ID: ${ENV_ID}")
-            echo "${CH_RESP}"
-
-            echo "ERROR: Could not find a supported runtime version matching ${{ env.APP_RUNTIME }} on target ${TARGET_ID}."
-            echo "Review the output above to find the correct runtimeVersion format."
-            exit 1
-          fi
-          echo "Resolved runtime version: ${RUNTIME_VERSION}"
+          # Use APP_RUNTIME directly — CloudHub 2.0 shared space has no public runtimes lookup API
+          RUNTIME_VERSION="${{ env.APP_RUNTIME }}"
+          echo "Runtime version: ${RUNTIME_VERSION}"
 
           # Build deployment config referencing Exchange artifact (no file upload)
           DEPLOY_CONFIG=$(jq -n \
