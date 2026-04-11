@@ -13,7 +13,7 @@ env:
   TARGET_ID: cloudhub-us-east-2
   GROUP_ID: 9316d463-75eb-4e74-955d-f242165464ce
   ARTIFACT_ID: mulesoft-cicd-sample
-  VERSION: 2.0.8
+  VERSION: 2.0.9
 
 jobs:
   build-and-deploy:
@@ -157,8 +157,8 @@ jobs:
             STATUS=$(echo "${DESCRIBE_OUT}" | jq -r '.status // .deploymentStatus // empty' 2>/dev/null || true)
             echo "Current status: ${STATUS}"
 
-            if [ "${STATUS}" = "RUNNING" ]; then
-              echo "Application is RUNNING successfully!"
+            if [ "${STATUS}" = "RUNNING" ] || [ "${STATUS}" = "STARTED" ]; then
+              echo "Application is ${STATUS} successfully!"
               break
             elif [ "${STATUS}" = "FAILED" ] || [ "${STATUS}" = "DEPLOYMENT_FAILED" ]; then
               echo "Application deployment FAILED!"
@@ -171,7 +171,7 @@ jobs:
             fi
           done
 
-          if [ "${STATUS}" != "RUNNING" ]; then
-            echo "Timed out waiting for application to reach RUNNING state. Last status: ${STATUS}"
+          if [ "${STATUS}" != "RUNNING" ] && [ "${STATUS}" != "STARTED" ]; then
+            echo "Timed out waiting for application to reach RUNNING/STARTED state. Last status: ${STATUS}"
             exit 1
           fi
