@@ -10,10 +10,10 @@ env:
   ANYPOINT_ENV: Sandbox
   APP_NAME: mulesoft-cicd-sample
   APP_RUNTIME: 4.9.0
-  TARGET_NAME: Cloudhub-US-East-2
+  TARGET_ID: cloudhub-us-east-2
   GROUP_ID: 9316d463-75eb-4e74-955d-f242165464ce
   ARTIFACT_ID: mulesoft-cicd-sample
-  VERSION: 2.0.1
+  VERSION: 2.0.2
 
 jobs:
   build-and-deploy:
@@ -59,129 +59,30 @@ jobs:
             </servers>
           </settings>
           SETTINGS_EOF
-          # Replace placeholder with actual credentials
           sed -i "s|ANYPOINT_REPO_PASSWORD_PLACEHOLDER|${ANYPOINT_REPO_PASSWORD}|g" ~/.m2/settings.xml
 
       - name: Build and publish Mule application to Anypoint Exchange
         run: mvn clean deploy -DskipTests --no-transfer-progress
 
-      - name: Deploy to CloudHub 2.0 via REST API
+      - name: Install Anypoint CLI
+        run: npm install -g anypoint-cli-v4
+
+      - name: Deploy to CloudHub 2.0 via Anypoint CLI
         env:
           ANYPOINT_CLIENT_ID: ${{ secrets.CONNECTED_APP_CLIENT_ID }}
           ANYPOINT_CLIENT_SECRET: ${{ secrets.CONNECTED_APP_CLIENT_SECRET }}
         run: |
-          # Get access token
-          echo "Getting access token..."
-          ACCESS_TOKEN=$(curl -sf -X POST "https://anypoint.mulesoft.com/accounts/api/v2/oauth2/token" \
-            -H "Content-Type: application/x-www-form-urlencoded" \
-            -d "grant_type=client_credentials&client_id=${ANYPOINT_CLIENT_ID}&client_secret=${ANYPOINT_CLIENT_SECRET}" \
-            | jq -r '.access_token')
-          echo "Access token obtained"
-
-          # Get environment ID
-          echo "Getting environment ID..."
-          ENV_ID=$(curl -sf "https://anypoint.mulesoft.com/accounts/api/organizations/${{ env.ANYPOINT_ORG }}/environments" \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            | jq -r --arg env "${{ env.ANYPOINT_ENV }}" '.data[] | select(.name==$env) | .id')
-          echo "Environment ID: ${ENV_ID}"
-
-          # Get target ID
-          echo "Getting target ID..."
-          TARGET_ID=$(curl -sf "https://anypoint.mulesoft.com/runtimefabric/api/organizations/${{ env.ANYPOINT_ORG }}/targets" \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            | jq -r --arg target "${{ env.TARGET_NAME }}" '.[] | select(.name==$target) | .id')
-          echo "Target ID: ${TARGET_ID}"
-
-          RUNTIME_VERSION="${{ env.APP_RUNTIME }}"
-          echo "Runtime version: ${RUNTIME_VERSION}"
-
-          # Build deployment config referencing Exchange artifact (no file upload)
-          DEPLOY_CONFIG=$(jq -n \
-            --arg name "${{ env.APP_NAME }}" \
-            --arg targetId "${TARGET_ID}" \
-            --arg runtime "${RUNTIME_VERSION}" \
-            --arg groupId "${{ env.GROUP_ID }}" \
-            --arg artifactId "${{ env.ARTIFACT_ID }}" \
-            --arg version "${{ env.VERSION }}" \
-            --arg vcores "0.1" \
-            '{
-              name: $name,
-              labels: [],
-              target: {
-                provider: "MC",
-                targetId: $targetId,
-                deploymentSettings: {
-                  muleVersion: { version: $runtime },
-                  lastMileSecurity: false,
-                  persistentObjectStore: false,
-                  updateStrategy: "rolling",
-                  clustering: false,
-                  enforceDeployingReplicasAcrossNodes: false,
-                  generateDefaultPublicUrl: true,
-                  http: { inbound: { lastMileSecurity: false, forwardSslSession: false } },
-                  jvm: {}
-                },
-                replicas: 1
-              },
-              application: {
-                vCores: $vcores,
-                ref: {
-                  groupId: $groupId,
-                  artifactId: $artifactId,
-                  version: $version,
-                  packaging: "jar"
-                },
-                desiredState: "STARTED",
-                configuration: {
-                  "mule.agent.application.properties.service": {
-                    applicationName: $name,
-                    properties: {},
-                    secureProperties: {}
-                  },
-                  "mule.agent.logging.service": {
-                    artifactName: $name,
-                    scopeLoggingConfigurations: []
-                  }
-                },
-                integrations: {
-                  services: { objectStoreV2: { enabled: false } }
-                }
-              }
-            }')
-
-          echo "=== Deployment JSON ==="
-          echo "${DEPLOY_CONFIG}" | jq .
-          echo "======================="
-
-          # Check if deployment already exists
-          echo "Checking for existing deployment..."
-          EXISTING_ID=$(curl -sf "https://anypoint.mulesoft.com/amc/application-manager/api/v2/organizations/${{ env.ANYPOINT_ORG }}/environments/${ENV_ID}/deployments" \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            | jq -r --arg name "${{ env.APP_NAME }}" '.items[] | select(.name==$name) | .id // empty')
-
-          if [ -n "${EXISTING_ID}" ]; then
-            echo "Updating existing deployment: ${EXISTING_ID}"
-            HTTP_CODE=$(curl -s -o response.json -w "%{http_code}" -X PATCH \
-              "https://anypoint.mulesoft.com/amc/application-manager/api/v2/organizations/${{ env.ANYPOINT_ORG }}/environments/${ENV_ID}/deployments/${EXISTING_ID}" \
-              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d "${DEPLOY_CONFIG}")
-          else
-            echo "Creating new deployment..."
-            HTTP_CODE=$(curl -s -o response.json -w "%{http_code}" -X POST \
-              "https://anypoint.mulesoft.com/amc/application-manager/api/v2/organizations/${{ env.ANYPOINT_ORG }}/environments/${ENV_ID}/deployments" \
-              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d "${DEPLOY_CONFIG}")
-          fi
-
-          echo "HTTP Status: ${HTTP_CODE}"
-          echo "Response:"
-          cat response.json | jq . 2>/dev/null || cat response.json
-
-          if [[ "${HTTP_CODE}" -ge 200 && "${HTTP_CODE}" -lt 300 ]]; then
-            echo "Deployment initiated successfully!"
-          else
-            echo "Deployment failed with HTTP ${HTTP_CODE}"
-            exit 1
-          fi
+          anypoint-cli-v4 runtime-mgr:application:deploy \
+            "${{ env.APP_NAME }}" \
+            "${{ env.TARGET_ID }}" \
+            "${{ env.APP_RUNTIME }}" \
+            "${{ env.ARTIFACT_ID }}" \
+            --groupId "${{ env.GROUP_ID }}" \
+            --assetVersion "${{ env.VERSION }}" \
+            --replicaSize 0.1 \
+            --replicas 1 \
+            --releaseChannel LTS \
+            --environment "${{ env.ANYPOINT_ENV }}" \
+            --organization "${{ env.ANYPOINT_ORG }}" \
+            --client_id "${ANYPOINT_CLIENT_ID}" \
+            --client_secret "${ANYPOINT_CLIENT_SECRET}"
