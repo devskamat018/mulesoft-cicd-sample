@@ -13,7 +13,7 @@ env:
   TARGET_ID: cloudhub-us-east-2
   GROUP_ID: 9316d463-75eb-4e74-955d-f242165464ce
   ARTIFACT_ID: mulesoft-cicd-sample
-  VERSION: 2.0.4
+  VERSION: 2.0.5
 
 jobs:
   build-and-deploy:
@@ -72,24 +72,36 @@ jobs:
           ANYPOINT_CLIENT_ID: ${{ secrets.CONNECTED_APP_CLIENT_ID }}
           ANYPOINT_CLIENT_SECRET: ${{ secrets.CONNECTED_APP_CLIENT_SECRET }}
         run: |
-          # Try modify first (update existing app), fall back to deploy (create new)
+          # Print modify help to see exact flags
+          echo "=== modify command help ==="
+          anypoint-cli-v4 runtime-mgr:application:modify --help \
+            --client_id "${ANYPOINT_CLIENT_ID}" \
+            --client_secret "${ANYPOINT_CLIENT_SECRET}" 2>&1 || true
+          echo "==========================="
+
+          # Capture modify output to detect error type
           echo "Attempting to update existing deployment..."
-          if anypoint-cli-v4 runtime-mgr:application:modify \
-              "${{ env.APP_NAME }}" \
-              "${{ env.ARTIFACT_ID }}" \
-              --groupId "${{ env.GROUP_ID }}" \
-              --assetVersion "${{ env.VERSION }}" \
-              --replicaSize 0.1 \
-              --replicas 1 \
-              --runtimeVersion "${{ env.APP_RUNTIME }}" \
-              --releaseChannel LTS \
-              --environment "${{ env.ANYPOINT_ENV }}" \
-              --organization "${{ env.ANYPOINT_ORG }}" \
-              --client_id "${ANYPOINT_CLIENT_ID}" \
-              --client_secret "${ANYPOINT_CLIENT_SECRET}" 2>&1; then
+          MODIFY_OUT=$(anypoint-cli-v4 runtime-mgr:application:modify \
+            "${{ env.APP_NAME }}" \
+            "${{ env.ARTIFACT_ID }}" \
+            --groupId "${{ env.GROUP_ID }}" \
+            --assetVersion "${{ env.VERSION }}" \
+            --replicaSize 0.1 \
+            --replicas 1 \
+            --runtimeVersion "${{ env.APP_RUNTIME }}" \
+            --releaseChannel LTS \
+            --environment "${{ env.ANYPOINT_ENV }}" \
+            --organization "${{ env.ANYPOINT_ORG }}" \
+            --client_id "${ANYPOINT_CLIENT_ID}" \
+            --client_secret "${ANYPOINT_CLIENT_SECRET}" 2>&1) && MODIFY_EXIT=0 || MODIFY_EXIT=$?
+
+          echo "Modify output: ${MODIFY_OUT}"
+          echo "Modify exit code: ${MODIFY_EXIT}"
+
+          if [ "${MODIFY_EXIT}" -eq 0 ]; then
             echo "Deployment updated successfully!"
-          else
-            echo "App not found — creating new deployment..."
+          elif echo "${MODIFY_OUT}" | grep -qi "not found\|does not exist\|no app"; then
+            echo "App does not exist — creating with deploy..."
             anypoint-cli-v4 runtime-mgr:application:deploy \
               "${{ env.APP_NAME }}" \
               "${{ env.TARGET_ID }}" \
@@ -104,5 +116,7 @@ jobs:
               --organization "${{ env.ANYPOINT_ORG }}" \
               --client_id "${ANYPOINT_CLIENT_ID}" \
               --client_secret "${ANYPOINT_CLIENT_SECRET}"
-            echo "Deployment created successfully!"
+          else
+            echo "Modify failed with unexpected error — see output above"
+            exit 1
           fi
