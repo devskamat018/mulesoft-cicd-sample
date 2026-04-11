@@ -94,13 +94,48 @@ jobs:
 
           # Get the exact runtime version string supported by this target (e.g. "4.7.4:1e")
           echo "Getting supported runtime versions for target..."
-          RUNTIME_VERSION=$(curl -sf "https://anypoint.mulesoft.com/runtimefabric/api/organizations/${{ env.ANYPOINT_ORG }}/targets/${TARGET_ID}/runtimes" \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            | jq -r --arg base "${{ env.APP_RUNTIME }}" \
-              '[.[] | select(.version | startswith($base))] | sort_by(.version) | last | .version')
+          RUNTIMES_RAW=$(curl -sf "https://anypoint.mulesoft.com/runtimefabric/api/organizations/${{ env.ANYPOINT_ORG }}/targets/${TARGET_ID}/runtimes" \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}")
+          echo "Raw runtimes response: ${RUNTIMES_RAW}"
+
+          # Try field name 'version' first, then 'runtimeVersion', then 'tag'
+          RUNTIME_VERSION=$(echo "${RUNTIMES_RAW}" | jq -r --arg base "${{ env.APP_RUNTIME }}" \
+            '[
+              if type == "array" then .[]
+              elif .data then .data[]
+              elif .runtimes then .runtimes[]
+              else error("unknown shape")
+              end
+              | (.version // .runtimeVersion // .tag // "")
+              | select(startswith($base))
+            ] | sort | last // empty')
           echo "Resolved runtime version: ${RUNTIME_VERSION}"
 
+          # Fallback: try the Application Manager targets runtimes endpoint
           if [ -z "${RUNTIME_VERSION}" ] || [ "${RUNTIME_VERSION}" = "null" ]; then
+            echo "Trying Application Manager runtimes endpoint..."
+            RUNTIMES_RAW2=$(curl -sf "https://anypoint.mulesoft.com/amc/application-manager/api/v2/organizations/${{ env.ANYPOINT_ORG }}/targets/${TARGET_ID}/runtimes" \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}" 2>/dev/null || echo "{}")
+            echo "AMC runtimes response: ${RUNTIMES_RAW2}"
+            RUNTIME_VERSION=$(echo "${RUNTIMES_RAW2}" | jq -r --arg base "${{ env.APP_RUNTIME }}" \
+              '[
+                if type == "array" then .[]
+                elif .data then .data[]
+                elif .runtimes then .runtimes[]
+                else empty
+                end
+                | (.version // .runtimeVersion // .tag // "")
+                | select(startswith($base))
+              ] | sort | last // empty')
+            echo "Resolved runtime version (AMC): ${RUNTIME_VERSION}"
+          fi
+
+          # Also print full target info to help diagnose if still failing
+          if [ -z "${RUNTIME_VERSION}" ] || [ "${RUNTIME_VERSION}" = "null" ]; then
+            echo "Dumping full target info for diagnosis..."
+            curl -sf "https://anypoint.mulesoft.com/runtimefabric/api/organizations/${{ env.ANYPOINT_ORG }}/targets" \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+              | jq --arg target "${{ env.TARGET_NAME }}" '.[] | select(.name==$target)'
             echo "ERROR: Could not find a supported runtime version matching ${{ env.APP_RUNTIME }} on target ${TARGET_ID}"
             exit 1
           fi
