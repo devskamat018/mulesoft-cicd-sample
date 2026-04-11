@@ -13,7 +13,7 @@ env:
   TARGET_ID: cloudhub-us-east-2
   GROUP_ID: 9316d463-75eb-4e74-955d-f242165464ce
   ARTIFACT_ID: mulesoft-cicd-sample
-  VERSION: 2.0.7
+  VERSION: 2.0.8
 
 jobs:
   build-and-deploy:
@@ -104,7 +104,6 @@ jobs:
               --organization "${{ env.ANYPOINT_ORG }}" \
               --client_id "${ANYPOINT_CLIENT_ID}" \
               --client_secret "${ANYPOINT_CLIENT_SECRET}"
-            echo "Deployment updated successfully!"
           else
             echo "App does not exist — creating with deploy..."
             anypoint-cli-v4 runtime-mgr:application:deploy \
@@ -121,5 +120,58 @@ jobs:
               --organization "${{ env.ANYPOINT_ORG }}" \
               --client_id "${ANYPOINT_CLIENT_ID}" \
               --client_secret "${ANYPOINT_CLIENT_SECRET}"
-            echo "Deployment created successfully!"
+
+            # After fresh deploy, look up the UUID for the health check
+            APP_LIST2=$(anypoint-cli-v4 runtime-mgr:application:list \
+              --environment "${{ env.ANYPOINT_ENV }}" \
+              --organization "${{ env.ANYPOINT_ORG }}" \
+              --client_id "${ANYPOINT_CLIENT_ID}" \
+              --client_secret "${ANYPOINT_CLIENT_SECRET}" \
+              --output json 2>&1)
+            APP_UUID=$(echo "${APP_LIST2}" | jq -r --arg name "${{ env.APP_NAME }}" \
+              'if type == "array" then .[] elif .data then .data[] else empty end | select(.name == $name) | .id // empty' \
+              2>/dev/null || true)
+          fi
+
+          # Step 3: Poll until app is RUNNING or timeout after 10 minutes
+          echo "Waiting for application to reach RUNNING state..."
+          MAX_ATTEMPTS=20
+          SLEEP_SECONDS=30
+          ATTEMPT=0
+          STATUS=""
+
+          while [ "${ATTEMPT}" -lt "${MAX_ATTEMPTS}" ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "Health check attempt ${ATTEMPT}/${MAX_ATTEMPTS}..."
+
+            DESCRIBE_OUT=$(anypoint-cli-v4 runtime-mgr:application:describe \
+              "${APP_UUID}" \
+              --environment "${{ env.ANYPOINT_ENV }}" \
+              --organization "${{ env.ANYPOINT_ORG }}" \
+              --client_id "${ANYPOINT_CLIENT_ID}" \
+              --client_secret "${ANYPOINT_CLIENT_SECRET}" \
+              --output json 2>&1)
+
+            echo "Describe output: ${DESCRIBE_OUT}"
+
+            STATUS=$(echo "${DESCRIBE_OUT}" | jq -r '.status // .deploymentStatus // empty' 2>/dev/null || true)
+            echo "Current status: ${STATUS}"
+
+            if [ "${STATUS}" = "RUNNING" ]; then
+              echo "Application is RUNNING successfully!"
+              break
+            elif [ "${STATUS}" = "FAILED" ] || [ "${STATUS}" = "DEPLOYMENT_FAILED" ]; then
+              echo "Application deployment FAILED!"
+              exit 1
+            fi
+
+            if [ "${ATTEMPT}" -lt "${MAX_ATTEMPTS}" ]; then
+              echo "Status is '${STATUS}' — waiting ${SLEEP_SECONDS}s before next check..."
+              sleep ${SLEEP_SECONDS}
+            fi
+          done
+
+          if [ "${STATUS}" != "RUNNING" ]; then
+            echo "Timed out waiting for application to reach RUNNING state. Last status: ${STATUS}"
+            exit 1
           fi
