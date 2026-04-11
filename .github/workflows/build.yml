@@ -83,13 +83,9 @@ jobs:
 
           echo "App list output: ${APP_LIST}"
 
-          APP_UUID=$(echo "${APP_LIST}" | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-apps = data if isinstance(data, list) else data.get('data', [])
-match = next((a for a in apps if a.get('name') == '${{ env.APP_NAME }}'), None)
-print(match['id'] if match else '')
-" 2>/dev/null || true)
+          APP_UUID=$(echo "${APP_LIST}" | jq -r --arg name "${{ env.APP_NAME }}" \
+            'if type == "array" then .[] elif .data then .data[] else empty end | select(.name == $name) | .id // empty' \
+            2>/dev/null || true)
 
           echo "Found app UUID: ${APP_UUID}"
 
