@@ -103,7 +103,7 @@ jobs:
             --arg groupId "${{ env.GROUP_ID }}" \
             --arg artifactId "${{ env.ARTIFACT_ID }}" \
             --arg version "${{ env.VERSION }}" \
-            --argjson vcores 0.1 \
+            --arg vcores "0.1" \
             '{
               name: $name,
               labels: [],
@@ -119,12 +119,12 @@ jobs:
                   enforceDeployingReplicasAcrossNodes: false,
                   generateDefaultPublicUrl: true,
                   http: { inbound: { lastMileSecurity: false, forwardSslSession: false } },
-                  jvm: {},
-                  resources: { vCores: $vcores }
+                  jvm: {}
                 },
                 replicas: 1
               },
               application: {
+                vCores: $vcores,
                 ref: {
                   groupId: $groupId,
                   artifactId: $artifactId,
