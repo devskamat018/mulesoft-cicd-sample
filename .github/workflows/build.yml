@@ -121,7 +121,7 @@ jobs:
                   jvm: {}
                 },
                 replicas: 1,
-                resources: { vCores: $vcores }
+                vCores: $vcores
               },
               application: {
                 ref: {
