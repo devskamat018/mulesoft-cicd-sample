@@ -118,10 +118,10 @@ jobs:
                   clustering: false,
                   enforceDeployingReplicasAcrossNodes: false,
                   http: { inbound: { lastMileSecurity: false, forwardSslSession: false } },
-                  jvm: {},
-                  resources: { vCores: $vcores }
+                  jvm: {}
                 },
-                replicas: 1
+                replicas: 1,
+                resources: { vCores: $vcores }
               },
               application: {
                 ref: {
