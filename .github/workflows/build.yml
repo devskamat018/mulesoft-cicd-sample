@@ -92,22 +92,12 @@ jobs:
             | jq -r --arg target "${{ env.TARGET_NAME }}" '.[] | select(.name==$target) | .id')
           echo "Target ID: ${TARGET_ID}"
 
-          # Probe org-level runtimes to find the exact version string
-          echo "Probing available runtimes..."
-          for ENDPOINT in \
-            "https://anypoint.mulesoft.com/runtimefabric/api/organizations/${{ env.ANYPOINT_ORG }}/runtimes" \
-            "https://anypoint.mulesoft.com/amc/application-manager/api/v2/organizations/${{ env.ANYPOINT_ORG }}/runtimes" \
-            "https://anypoint.mulesoft.com/amc/application-manager/api/v2/organizations/${{ env.ANYPOINT_ORG }}/cloudhub/runtimes"
-          do
-            RESP=$(curl -s -w "\n%{http_code}" "${ENDPOINT}" -H "Authorization: Bearer ${ACCESS_TOKEN}")
-            STATUS=$(echo "${RESP}" | tail -1)
-            BODY=$(echo "${RESP}" | head -n -1)
-            echo "[$STATUS] ${ENDPOINT}"
-            if [ "${STATUS}" = "200" ]; then
-              echo "${BODY}" | jq --arg base "${{ env.APP_RUNTIME }}" \
-                '[.. | strings | select(startswith($base))] | unique' 2>/dev/null || echo "${BODY}"
-            fi
-          done
+          # Dump full raw target JSON to find embedded runtime version strings
+          echo "=== Full raw target JSON ==="
+          curl -sf "https://anypoint.mulesoft.com/runtimefabric/api/organizations/${{ env.ANYPOINT_ORG }}/targets" \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            | jq --arg t "${{ env.TARGET_NAME }}" '.[] | select(.name==$t)'
+          echo "=== End target JSON ==="
 
           RUNTIME_VERSION="${{ env.APP_RUNTIME }}"
           echo "Runtime version to deploy: ${RUNTIME_VERSION}"
