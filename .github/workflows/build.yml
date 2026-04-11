@@ -9,7 +9,7 @@ env:
   ANYPOINT_ORG: 9316d463-75eb-4e74-955d-f242165464ce
   ANYPOINT_ENV: Sandbox
   APP_NAME: mulesoft-cicd-sample
-  APP_RUNTIME: 4.8.2:1e
+  APP_RUNTIME: 4.9.0
   TARGET_NAME: Cloudhub-US-East-2
   GROUP_ID: 9316d463-75eb-4e74-955d-f242165464ce
   ARTIFACT_ID: mulesoft-cicd-sample
@@ -92,15 +92,8 @@ jobs:
             | jq -r --arg target "${{ env.TARGET_NAME }}" '.[] | select(.name==$target) | .id')
           echo "Target ID: ${TARGET_ID}"
 
-          # Dump full raw target JSON to find embedded runtime version strings
-          echo "=== Full raw target JSON ==="
-          curl -sf "https://anypoint.mulesoft.com/runtimefabric/api/organizations/${{ env.ANYPOINT_ORG }}/targets" \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            | jq --arg t "${{ env.TARGET_NAME }}" '.[] | select(.name==$t)'
-          echo "=== End target JSON ==="
-
           RUNTIME_VERSION="${{ env.APP_RUNTIME }}"
-          echo "Runtime version to deploy: ${RUNTIME_VERSION}"
+          echo "Runtime version: ${RUNTIME_VERSION}"
 
           # Build deployment config referencing Exchange artifact (no file upload)
           DEPLOY_CONFIG=$(jq -n \
