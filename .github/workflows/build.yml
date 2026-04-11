@@ -117,11 +117,7 @@ jobs:
                   clustering: false,
                   enforceDeployingReplicasAcrossNodes: false,
                   http: { inbound: { lastMileSecurity: false, forwardSslSession: false } },
-                  jvm: {},
-                  resources: {
-                    cpu: { reserved: "100m", limit: "500m" },
-                    memory: { reserved: "700Mi", limit: "700Mi" }
-                  }
+                  jvm: {}
                 },
                 replicas: 1
               },
