@@ -9,7 +9,7 @@ env:
   ANYPOINT_ORG: 9316d463-75eb-4e74-955d-f242165464ce
   ANYPOINT_ENV: Sandbox
   APP_NAME: mulesoft-cicd-sample
-  APP_RUNTIME: 4.9.0
+  APP_RUNTIME: 4.9.0:7
   TARGET_NAME: Cloudhub-US-East-2
   GROUP_ID: 9316d463-75eb-4e74-955d-f242165464ce
   ARTIFACT_ID: mulesoft-cicd-sample
@@ -117,9 +117,10 @@ jobs:
                   updateStrategy: "rolling",
                   clustering: false,
                   enforceDeployingReplicasAcrossNodes: false,
+                  generateDefaultPublicUrl: true,
                   http: { inbound: { lastMileSecurity: false, forwardSslSession: false } },
                   jvm: {},
-                  vCores: $vcores
+                  resources: { vCores: $vcores }
                 },
                 replicas: 1
               },
