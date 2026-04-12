@@ -13,7 +13,7 @@ env:
   TARGET_ID: cloudhub-us-east-2
   GROUP_ID: 9316d463-75eb-4e74-955d-f242165464ce
   ARTIFACT_ID: mulesoft-cicd-sample
-  VERSION: 2.0.9
+  VERSION: 2.1.0
 
 jobs:
   build-and-deploy:
@@ -154,7 +154,29 @@ jobs:
 
             echo "Describe output: ${DESCRIBE_OUT}"
 
-            STATUS=$(echo "${DESCRIBE_OUT}" | jq -r '.status // .deploymentStatus // empty' 2>/dev/null || true)
+            # Try jq with multiple possible field paths
+            STATUS=$(echo "${DESCRIBE_OUT}" | jq -r '
+              .status //
+              .deploymentStatus //
+              .application.status //
+              .deployments[0].status //
+              .currentDeployment.status //
+              empty
+            ' 2>/dev/null || true)
+
+            # Fallback: grep raw output for known status strings
+            if [ -z "${STATUS}" ]; then
+              if echo "${DESCRIBE_OUT}" | grep -qi '"STARTED"'; then
+                STATUS="STARTED"
+              elif echo "${DESCRIBE_OUT}" | grep -qi '"RUNNING"'; then
+                STATUS="RUNNING"
+              elif echo "${DESCRIBE_OUT}" | grep -qi '"FAILED"'; then
+                STATUS="FAILED"
+              elif echo "${DESCRIBE_OUT}" | grep -qi '"DEPLOYING"'; then
+                STATUS="DEPLOYING"
+              fi
+            fi
+
             echo "Current status: ${STATUS}"
 
             if [ "${STATUS}" = "RUNNING" ] || [ "${STATUS}" = "STARTED" ]; then
